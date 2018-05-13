@@ -6,6 +6,7 @@
 package preemptive_priority;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import process.PPProcess;
 import process.Process;
@@ -20,68 +21,82 @@ public class PreemptivePriority {
     private ArrayList<PPProcess> ready; //processes that arrived or were paused
     private PPProcess running; //the running process
     private ArrayList<PPProcess> finished; //processes completed
-    private ArrayList<Process> idle_times; //I made the idle times act like a normal nonpreemptive process
+    //private ArrayList<Process> idle_times; //I made the idle times act like a normal nonpreemptive process
     //private HashMap<Integer, Integer> idle_times;
-    private int currentTime;
-    private int finishTime;
-    private int processCount;
+    private int runTime = 0; //how long a running process is running; resets whenever completed running or when preemption occurs
+    private int currentTime = 0; //the time at the moment
+    private int finishTime; //time every process has completed
+    private int processCount; //# of processes in total
     
     public PreemptivePriority(ArrayList<PPProcess> processes)
     {
         this.arriving = processes;
+        this.ready = new ArrayList<PPProcess>();
+        this.running = null;
+        this.finished = new ArrayList<PPProcess>();
         processCount = processes.size();
     }
     
-    public PPProcess getNextReady() //get the process that will arrive next 
+    public void sortArriving()
     {
-        PPProcess next = arriving.get(0);
-        
-        for (PPProcess p: arriving)
+        Collections.sort(arriving, new ArrivalComparator());
+    }
+    
+    public void sortReady()
+    {
+        Collections.sort(ready, new PriorityComparator());
+    }
+    
+    public boolean shouldReady()
+    {
+        if(arriving.isEmpty())
         {
-            if (p.arrival_time < next.arrival_time)
-            {
-                next = p;
-            }
+            return false;
         }
-        
-        return next;
+        return currentTime == arriving.get(0).arrival_time;
     }
     
-    public void arriveProcess(PPProcess p) //move an arrived proess from the arriving list to the ready list
+    public void readyProcess()
     {
-        arriving.remove(p);
-        ready.add(p);
+        ready.add(arriving.get(0));
+        arriving.remove(0);
     }
     
-    public PPProcess getNextRun() //get the process that will run next by getting the process with the highest priority
+    public boolean shouldRun()
     {
-        PPProcess next = ready.get(0);
-        
-        for (PPProcess p: ready)
+        return running == null;
+    }
+    
+    public void runProcess()
+    {
+        running = ready.get(0);
+        ready.remove(0);
+    }
+    
+    public boolean shouldFinish()
+    {
+        if (running == null)
         {
-            if (p.priority < next.priority)
-            {
-                next = p;
-            } else if (p.number < next.number) 
-            {
-                next = p;
-            }
+            return false;
         }
-        
-        return next;
+        return running.getSumOfSegments() + runTime == running.burst_time;
     }
     
-    public void runProcess(PPProcess p) //set the ready process as running and remove it from ready list
-    {
-        ready.remove(p);
-        running = p;
-    }
-    
-    public void finishProcess() //move a completed running process to the finished list
+    public void finishProcess()
     {
         finished.add(running);
-        //setFinishTime();
         running = null;
+    }
+    
+    public boolean shouldPreempt()
+    {
+        return running.priority > ready.get(0).priority;
+    }
+    
+    public void preemptProcess()
+    {
+        ready.add(running);
+        runProcess();
     }
     
     public void elapseCurrentTime() //let time pass by
@@ -89,16 +104,9 @@ public class PreemptivePriority {
         currentTime++;
     }
     
-    public void setFinishTime() //each time a process has finished, set the finishTime as the end time of that process
+    public PPProcess getProcess(int number) //get a process by its number or id. Using get() from ArrayList will not always be reliable.
     {
-        finishTime = running.getTimePaused(processCount - 1);
-    }
-    
-    public PPProcess getProcess(int number) //get a process by its number. Using get() from ArrayList will not always be reliable.
-    {
-        ArrayList<PPProcess> all = getAllProcesses();
-        
-        for (PPProcess p: all)
+        for (PPProcess p: finished)
         {
             if (p.number == number)
             {
@@ -109,35 +117,97 @@ public class PreemptivePriority {
         return null;
     }
     
-    public ArrayList<PPProcess> getAllProcesses()
+    public void watcher()
     {
-        ArrayList<PPProcess> all = new ArrayList<PPProcess>();
+        System.out.println("Arriving: " + arriving.toString());
+        System.out.println("Ready: " + ready.toString());
+        System.out.println("Running: " + running);
+        System.out.println("Finished: " + finished.toString());
+    }
+    
+    public void drawGantt()
+    {
+        sortArriving();
         
-        all.addAll(arriving);
-        all.addAll(ready);
-        all.add(running);
-        all.addAll(finished);
+        while (finished.size() < processCount) // or (!arriving.isEmpty() || !ready.isEmpty() || running != null)
+        {
+            System.out.println("=============================BEGIN==========================="); //LOG
+            System.out.println("\tTIME " + currentTime + " T.U."); //LOG
+            System.out.println("Part 1: Check running if must finish");
+            watcher();
+            
+            if (shouldFinish())
+            {
+                running.burst_segments.add(runTime);
+                runTime = 0;
+                finishProcess();
+                if (finished.size() == processCount)
+                {
+                    break;
+                }
+            }
+            
+            System.out.println("Part 2: Check arriving if becomes ready");
+            watcher();
+            
+            while (shouldReady())
+            {
+                readyProcess();
+            }
+            
+            System.out.println("Part 3: Check if should run or preempt");
+            watcher();
+            
+            if (!ready.isEmpty())
+            {
+                sortReady();
+                if (running == null)
+                {
+                    runProcess();
+                    running.start_times.add(currentTime);
+                }
+                else if (shouldPreempt())
+                {
+                    running.burst_segments.add(runTime);
+                    runTime = 0;
+                    preemptProcess();
+                    running.start_times.add(currentTime);
+                }
+            }
+            
+            if (running != null)
+            {
+                runTime++;
+            }
+            
+            System.out.println("Part 4: So far...");
+            watcher();
+            
+            currentTime++;
+            
+            System.out.println("===========================END==============================="); //LOG
+        }
         
-        return all;
+        finishTime = currentTime;
     }
     
     public float getCPUUtil()
     {
-        int cu, sum = 0;
+        float cu, sum = 0;
         
-        for (Process p: idle_times)
+        for (PPProcess p: finished)
         {
-            sum += p.burst_time;
+            sum += (float)p.burst_time;
         }
         
-        cu = (finishTime - sum) / finishTime * 100;
+        cu = (sum / (float)finishTime) * 100;
         
         return cu;
     }
     
-    public float getThroughput()
+    public String getThroughput()
     {
-        return processCount / finishTime;
+        return processCount + "/" + finishTime;
     }
     
     public int getWaitingTime(int number)
@@ -158,39 +228,100 @@ public class PreemptivePriority {
     public float getAvgWT()
     {
         int sum = 0;
-        ArrayList<PPProcess> all = getAllProcesses();
         
-        for (PPProcess p: all)
+        for (PPProcess p: finished)
         {
             sum += p.getWaitingTime();
         }
         
-        return sum / processCount;
+        return (float)sum / (float)processCount;
     }
     
     public float getAvgTT()
     {
         int sum = 0;
-        ArrayList<PPProcess> all = getAllProcesses();
         
-        for (PPProcess p: all)
+        for (PPProcess p: finished)
         {
             sum += p.getTurnaroundTime();
         }
         
-        return sum / processCount;
+        return (float)sum / (float)processCount;
     }
     
     public float getAvgRT()
     {
         int sum = 0;
-        ArrayList<PPProcess> all = getAllProcesses();
         
-        for (PPProcess p: all)
+        for (PPProcess p: finished)
         {
             sum += p.getResponseTime();
         }
         
-        return sum / processCount;
+        return (float)sum / (float)processCount;
+    }
+    
+    public ArrayList<PPProcess> getFinished()
+    {
+        return this.finished;
+    }
+    
+    public PPInfo getInfo()
+    {
+        return new PPInfo(this);
+    }
+    
+    public String toString() {
+        String s = new String();
+        for (PPProcess p: finished)
+        {
+            s += "\n ******** PROCESS " + p.number + " ******** \n"
+                 + "\n Arrival Time: " + p.arrival_time
+                 + "\n Burst Time: " + p.burst_time
+                 + "\n Priority: " + p.priority
+                 + "\n Start Times: " + p.start_times.toString()
+                 + "\n Burst Segments: " + p.burst_segments.toString()
+                 + "\n Waiting Time: " + p.getWaitingTime()
+                 + "\n Turnaround Time: " + p.getTurnaroundTime()
+                 + "\n Response Time: " + p.getResponseTime()
+                 + "\n ************************** \n";
+        }
+        s += "\nCPU Utilization: " + String.format("%.2f", getCPUUtil())
+             + "\nThroughput: " + getThroughput()
+             + "\nAverage Waiting Time: " + String.format("%.2f", getAvgWT())
+             + "\nAverage Turnaround Time: " + String.format("%.2f", getAvgTT())
+             + "\nAverage Response Time: " + String.format("%.2f", getAvgRT());
+             
+        return s;
+    }
+    
+    public static void main(String a[])
+    {
+        PPProcess p1 = new PPProcess(1, 0, 10, 6); //id, at, bt, pr
+        PPProcess p2 = new PPProcess(2, 4, 15, 5);
+        PPProcess p3 = new PPProcess(3, 6, 10, 4);
+        PPProcess p4 = new PPProcess(4, 8, 12, 3);
+        PPProcess p5 = new PPProcess(5, 0, 11, 8);
+        PPProcess p6 = new PPProcess(6, 2, 17, 7);
+        PPProcess p7 = new PPProcess(7, 1, 19, 1);
+        PPProcess p8 = new PPProcess(8, 10, 14, 2);
+        ArrayList<PPProcess> px = new ArrayList<PPProcess>();
+        px.add(p1);
+        px.add(p2);
+        px.add(p3);
+        px.add(p4);
+        px.add(p5);
+        px.add(p6);
+        px.add(p7);
+        px.add(p8);
+        String s = new String();
+        for (PPProcess p : px)
+        {
+            s += "[Process " + p.number + "] ";
+        }
+        System.out.println("Given: " + s + "\nSize: " + px.size());
+        PreemptivePriority pp = new PreemptivePriority(px);
+        pp.drawGantt();
+        System.out.println(pp.toString());
     }
 }

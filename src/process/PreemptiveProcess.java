@@ -6,7 +6,7 @@
 package process;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+//import java.util.HashMap;
 
 /**
  *
@@ -15,31 +15,38 @@ import java.util.HashMap;
 
 public class PreemptiveProcess extends Process {
     public ArrayList<Integer> start_times;
+    public ArrayList<Integer> burst_segments;
     //public ArrayList<Integer> end_times;
-    public ArrayList<Integer> burst_segment;
     //public HashMap<Integer, Integer> burst_segment;
+    
+    public PreemptiveProcess()
+    {
+        super();
+        this.start_times = new ArrayList<Integer>();
+        this.burst_segments = new ArrayList<Integer>();
+    }
     
     public PreemptiveProcess(int number, int arrival_time, int burst_time)
     {
         super(number, arrival_time, burst_time);
         this.start_times = new ArrayList<Integer>();
+        this.burst_segments = new ArrayList<Integer>();
         //this.end_times = new ArrayList<Integer>();
-        this.burst_segment = new ArrayList<Integer>();
     }
     
-    public void setStartTime()
+    public int getSumOfSegments()
     {
-        super.start_time = start_times.get(0);
+        int sum = 0;
+        for (Integer bs: this.burst_segments)
+        {
+            sum += bs;
+        }
+        return sum;
     }
     
-    public void setEndTime() 
+    public int getEndOfSegment(int position)
     {
-        super.end_time = getTimePaused(start_times.size());
-    }
-    
-    public int getTimePaused(int position)
-    {
-        return start_times.get(position) + burst_segment.get(position);
+        return start_times.get(position) + burst_segments.get(position);
     }
     
     /*
@@ -48,23 +55,41 @@ public class PreemptiveProcess extends Process {
         return end_times.get(position) - start_times.get(position); 
     }
     */
-            
+    
     @Override
     public int getWaitingTime()
     {
-        int sum = super.getWaitingTime();
+        evalStartTime();
+        int sum = super.getWaitingTime(); //or super.getResponseTime(); or getResponseTime();
         
         for (int i = 1; i < start_times.size(); i++)
         {
-            sum += start_times.get(i) - getTimePaused(i - 1);
+            sum += start_times.get(i) - getEndOfSegment(i - 1);
         }
         
         return sum;
     }
     
     @Override
+    public int getTurnaroundTime()
+    {
+        return getEndOfSegment(start_times.size() - 1) - arrival_time;
+    }
+    
+    @Override
     public int getResponseTime()
     {
         return super.getWaitingTime();
+    }
+    
+    private void evalStartTime()
+    {
+        super.start_time = this.start_times.get(0);
+    }
+    
+    @Override
+    public int getEndTime()
+    {
+        return this.start_times.get(this.start_times.size() - 1) + this.burst_segments.get(this.burst_segments.size() - 1);
     }
 }

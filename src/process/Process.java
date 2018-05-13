@@ -16,7 +16,12 @@ public class Process {
     public int arrival_time;
     public int burst_time;
     public int start_time;
-    public int end_time;
+    //private int end_time;
+    
+    public Process()
+    {
+        super();
+    }
     
     public Process(int start_time, int burst_time) //this is for idle times
     {
@@ -40,16 +45,24 @@ public class Process {
     }
     
     //not sure if useful
+    /*
     public void setStartTime(int start_time)
     {
         this.start_time = start_time;
-        setEndTime();
+        //setEndTime();
     }
-    
+    */
+    /*
     private void setEndTime() {
         this.end_time = start_time + burst_time;
     }
+    */
     //up to here
+    
+    public int getEndTime()
+    {
+        return start_time + burst_time;
+    }
     
     public int getWaitingTime() 
     {
@@ -58,7 +71,7 @@ public class Process {
     
     public int getTurnaroundTime()
     {
-        return end_time - arrival_time;
+        return getEndTime() - arrival_time;
     }
     
     public int getResponseTime() //response time = waiting time for nonpreemptive

@@ -13,7 +13,12 @@ import java.util.ArrayList;
  */
 
 public class PPProcess extends PreemptiveProcess {
-    public int priority;
+    public int priority; //must be unique
+    
+    public PPProcess()
+    {
+        super();
+    }
     
     public PPProcess(int number, int arrival_time, int burst_time, int priority)
     {
